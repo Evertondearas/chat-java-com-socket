@@ -1,4 +1,4 @@
-package socket;
+package chatsocket;
 //lsdlfd
 import java.awt.Color;
 import java.awt.event.ActionEvent;
