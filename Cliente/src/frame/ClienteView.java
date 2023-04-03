@@ -10,9 +10,12 @@ import bean.ChatMessage.Action;
 import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
+import java.util.Set;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import javax.swing.JList;
 import javax.swing.JOptionPane;
+import javax.swing.ListSelectionModel;
 import service.ClienteService;
 
 /**
@@ -24,17 +27,16 @@ public class ClienteView extends javax.swing.JFrame {
     private Socket socket;
     private ChatMessage message;
     private ClienteService service;
-    
-    
+
     public ClienteView() {
         initComponents();
     }
-    
-    private class ListenerSocket implements Runnable{
-        
+
+    private class ListenerSocket implements Runnable {
+
         private ObjectInputStream input;
-        
-        public ListenerSocket(Socket socket){
+
+        public ListenerSocket(Socket socket) {
             try {
                 this.input = new ObjectInputStream(socket.getInputStream());
             } catch (IOException ex) {
@@ -46,17 +48,17 @@ public class ClienteView extends javax.swing.JFrame {
         public void run() {
             ChatMessage message = null;
             try {
-                while((message = (ChatMessage) input.readObject()) != null){
-                Action action = message.getAction();
-                
-                    if(action.equals(ChatMessage.Action.CONNECT)){
+                while ((message = (ChatMessage) input.readObject()) != null) {
+                    Action action = message.getAction();
+
+                    if (action.equals(ChatMessage.Action.CONNECT)) {
                         connected(message);
-                    }else if(action.equals(ChatMessage.Action.DISCONNECT)){
-                        disconnect(message);
-                     
-                    }else if(action.equals(ChatMessage.Action.SEND_ONE)){
+                    } else if (action.equals(ChatMessage.Action.DISCONNECT)) {
+                        disconnected();
+                        socket.close();
+                    } else if (action.equals(ChatMessage.Action.SEND_ONE)) {
                         receive(message);
-                    }else if(action.equals(ChatMessage.Action.USERS_ONLINE)){
+                    } else if (action.equals(ChatMessage.Action.USERS_ONLINE)) {
                         refreshOnlines(message);
                     }
                 }
@@ -66,58 +68,65 @@ public class ClienteView extends javax.swing.JFrame {
                 Logger.getLogger(ClienteView.class.getName()).log(Level.SEVERE, null, ex);
             }
         }
-        
+
     }
-    
-    public void connected(ChatMessage message){
-        if(message.getText().equals("NO")){
+
+    public void connected(ChatMessage message) {
+        if (message.getText().equals("NO")) {
             this.txtName.setText("");
             JOptionPane.showMessageDialog(this, "Conexão não realizada!");
             return;
         }
-        
+
         message = message;
         btnConectar.setEnabled(false);
         txtName.setEnabled(false);
-        
+
         btnSair.setEnabled(true);
         txtAreaSend.setEnabled(true);
         txtAreaReceive.setEnabled(true);
         btnEnviar.setEnabled(true);
         btnLimpar.setEnabled(true);
-        
+
         JOptionPane.showMessageDialog(this, "Você está conectado no chat!");
-        
+
     }
-    
-    public void disconnect(ChatMessage message){
-        try {
-            socket.close();
-            
-            btnConectar.setEnabled(true);
-            txtName.setEnabled(true);
+
+    public void disconnected() {
+
+        btnConectar.setEnabled(true);
+        txtName.setEnabled(true);
+
+        btnSair.setEnabled(false);
+        txtAreaSend.setEnabled(false);
+        txtAreaReceive.setEnabled(false);
+        btnEnviar.setEnabled(false);
+        btnLimpar.setEnabled(false);
         
-            btnSair.setEnabled(false);
-            txtAreaSend.setEnabled(false);
-            txtAreaReceive.setEnabled(false);
-            btnEnviar.setEnabled(false);
-            btnLimpar.setEnabled(false);
-            
-            JOptionPane.showMessageDialog(this, "Você saiu do chat!");
-        } catch (IOException ex) {
-            Logger.getLogger(ClienteView.class.getName()).log(Level.SEVERE, null, ex);
-        }
-        
+        txtAreaReceive.setText("");
+        txtAreaSend.setText("");
+
+        JOptionPane.showMessageDialog(this, "Você saiu do chat!");
+
     }
-    
-    public void receive(ChatMessage message){
-        
-        
+
+    public void receive(ChatMessage message) {
+        txtAreaReceive.append(message.getName() + "diz: " + message.getText() + "\n");
     }
-    
-    public void refreshOnlines(ChatMessage message){
+
+    public void refreshOnlines(ChatMessage message) {
+        System.out.println(message.getSetOnlines().toString());
         
+        Set<String> names = message.getSetOnlines();
         
+        names.remove((String) message.getName());
+        
+        String[] array = (String[]) names.toArray(new String[names.size()]);
+        
+        listOnlines.setListData(array);
+        listOnlines.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
+        listOnlines.setLayoutOrientation(JList.VERTICAL);
+
     }
 
     /**
@@ -188,11 +197,6 @@ public class ClienteView extends javax.swing.JFrame {
 
         jPanel2.setBorder(javax.swing.BorderFactory.createTitledBorder("Online"));
 
-        listOnlines.setModel(new javax.swing.AbstractListModel<String>() {
-            String[] strings = { "Item 1", "Item 2", "Item 3", "Item 4", "Item 5" };
-            public int getSize() { return strings.length; }
-            public String getElementAt(int i) { return strings[i]; }
-        });
         jScrollPane3.setViewportView(listOnlines);
 
         javax.swing.GroupLayout jPanel2Layout = new javax.swing.GroupLayout(jPanel2);
@@ -286,34 +290,58 @@ public class ClienteView extends javax.swing.JFrame {
     private void btnConectarActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_btnConectarActionPerformed
         // TODO add your handling code here:
         String name = txtName.getText();
-        
-        if(!name.isEmpty()){
+
+        if (!name.isEmpty()) {
             message = new ChatMessage();
             message.setAction(Action.CONNECT);
             message.setName(name);
-            
-            
-            if(socket == null){
-                service = new ClienteService();
-                socket = service.connect();
-                
-                new Thread(new ListenerSocket(socket)).start();
-            }
-            
+
+            service = new ClienteService();
+            socket = service.connect();
+
+            new Thread(new ListenerSocket(socket)).start();
+
             service.send(message);
         }
     }//GEN-LAST:event_btnConectarActionPerformed
 
     private void btnSairActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_btnSairActionPerformed
         // TODO add your handling code here:
+        message.setAction(Action.DISCONNECT);
+        service.send(message);
+        disconnected();
     }//GEN-LAST:event_btnSairActionPerformed
 
     private void btnLimparActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_btnLimparActionPerformed
         // TODO add your handling code here:
+        txtAreaSend.setText("");
     }//GEN-LAST:event_btnLimparActionPerformed
 
     private void btnEnviarActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_btnEnviarActionPerformed
         // TODO add your handling code here:
+     
+        String text = txtAreaSend.getText();
+        String name = message.getName();
+        
+        message = new ChatMessage();
+        
+        if(listOnlines.getSelectedIndex() > -1){
+            message.setNameReserved((String) listOnlines.getSelectedValue());
+            message.setAction(Action.SEND_ONE);
+            listOnlines.clearSelection();
+        }else{
+            message.setAction(Action.SEND_ALL);
+        }
+        
+        if(!text.isEmpty()){
+            message.setName(name);
+            message.setText(text);
+            
+            txtAreaReceive.append("você disse: " + text + "\n");
+        
+            service.send(message);
+        }
+        txtAreaSend.setText("");
     }//GEN-LAST:event_btnEnviarActionPerformed
 
 
