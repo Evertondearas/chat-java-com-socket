@@ -10,18 +10,20 @@ import java.net.Socket;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import bean.ChatMessage;
+import java.net.InetAddress;
 
 /**
  *
  * @author João P. Arquim
  */
 public class ClienteService {
+    
     private Socket socket;
     private ObjectOutputStream output;
-    
-    public Socket connect(){
+ 
+    public Socket connect(int porta){
         try {
-            socket = new Socket("localhost", 5555);
+            socket = new Socket(InetAddress.getLocalHost(), porta);
             output = new ObjectOutputStream(socket.getOutputStream());
         } catch (IOException ex) {
             Logger.getLogger(ClienteService.class.getName()).log(Level.SEVERE, null, ex);
